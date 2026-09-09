@@ -1,0 +1,5 @@
+semantic-kernel>=1.21.0
+python-dotenv>=1.0.0
+# semantic_kernel.agents.runtime imports google.protobuf directly but the
+# semantic-kernel wheel doesn't declare it as a dependency - pin it explicitly.
+protobuf>=4.25.0
