@@ -116,6 +116,39 @@ Try a technical complaint (e.g. "the login page is down") to see it route to
 - **The filter in `middleware.py`** — SK's middleware primitive. Registered
   per-`Kernel`, wraps every function call with your own before/after code.
 
+## Dependency security scanning
+
+Two mechanisms, running side by side — one detects, one keeps you from
+falling behind in the first place:
+
+- **`pip-audit` in CI** (`.github/workflows/security.yml`) — checks every
+  package + exact version in `requirements.txt` against the [OSV
+  database](https://osv.dev/) (PyPA Advisory DB, GitHub Security Advisories,
+  etc.) and fails the build on a known vulnerability. Run it locally with:
+
+  ```bash
+  pip install pip-audit
+  pip-audit -r requirements.txt
+  ```
+
+- **Dependabot** (`.github/dependabot.yml`) — opens PRs automatically once a
+  patched version exists, for both `pip` and GitHub Actions dependencies.
+
+**A real finding from running this**: `pip-audit -r requirements.txt` reports
+three CVEs (PYSEC-2026-2046, -2044, -2320) in `werkzeug`. We don't depend on
+werkzeug directly — it's pulled in transitively via
+`semantic-kernel -> openapi-core`, and `openapi-core` itself pins
+`werkzeug<3.1.2`, so we can't fix this by bumping our own `requirements.txt`.
+The only place `openapi-core` touches werkzeug is its optional
+`openapi_core.contrib.werkzeug` integration module, which nothing in this repo
+imports, so the vulnerable code path is never reachable here. The CI workflow
+suppresses those three IDs explicitly (`--ignore-vuln`, with the reasoning
+inline) rather than leaving the pipeline permanently red for something
+upstream — this is the same source-to-sink reachability judgment SonarQube's
+taint analysis makes formally, done by hand here. Re-run without the ignores
+next time `semantic-kernel` gets bumped; Dependabot will surface the fix once
+`openapi-core` relaxes its werkzeug pin.
+
 ## What I'd add with more time
 
 - A real backend instead of in-memory mock data

@@ -1,0 +1,27 @@
+name: Dependency Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pip-audit
+      # PYSEC-2026-2046 / -2044 / -2320: werkzeug<3.1.2, pulled in transitively via
+      # semantic-kernel -> openapi-core (which pins werkzeug<3.1.2 itself - we don't
+      # control this). We never import openapi_core.contrib.werkzeug, the only code
+      # path in that dependency that touches werkzeug, so it's unreachable here.
+      # Re-check without --ignore-vuln next time semantic-kernel/requirements.txt is
+      # bumped - Dependabot will pick up a fix once openapi-core relaxes the pin.
+      - run: |
+          pip-audit -r requirements.txt \
+            --ignore-vuln PYSEC-2026-2046 \
+            --ignore-vuln PYSEC-2026-2044 \
+            --ignore-vuln PYSEC-2026-2320
