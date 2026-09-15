@@ -1,0 +1,32 @@
+name: Dependency Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pip-audit
+      # PYSEC-2026-2046 / -2044 / -2320 (CVE-2025-66221, CVE-2026-21860, CVE-2026-27199):
+      # the same Werkzeug safe_join() bug, re-reported three times as each patch missed
+      # an evasion of the last. On Windows only, a request path resolving to a reserved
+      # device name (CON, AUX, NUL...) makes send_from_directory() hang while reading -
+      # a DoS, not RCE/data exposure. werkzeug<3.1.2 is pulled in transitively via
+      # semantic-kernel -> openapi-core, which pins that range itself - not something we
+      # control from requirements.txt. We run on Linux, and the only code that calls
+      # safe_join()/send_from_directory() is openapi_core.contrib.werkzeug, an optional
+      # integration this repo never imports - unreachable on top of being Windows-only.
+      # Re-check without --ignore-vuln next time semantic-kernel is bumped - Dependabot
+      # will pick up a fix once openapi-core relaxes the pin.
+      - run: |
+          pip-audit -r requirements.txt \
+            --ignore-vuln PYSEC-2026-2046 \
+            --ignore-vuln PYSEC-2026-2044 \
+            --ignore-vuln PYSEC-2026-2320
